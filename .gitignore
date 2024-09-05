@@ -1,4 +1,13 @@
-*.iml
+# Built application files
+*.apk
+*.aar
+*.ap_
+*.aab
+# Files for the ART/Dalvik VM
+*.dex
+# Java class files
+*.class
+
 .gradle
 /local.properties
 /.idea/caches
@@ -9,7 +18,21 @@
 /.idea/assetWizardSettings.xml
 .DS_Store
 /build
+build/
 /captures
 .externalNativeBuild
 .cxx
-local.properties
+
+# Intellij project files
+*.iml
+*.ipr
+*.iws
+/.idea/*
+.idea/*
+
+# buildSrc
+/buildSrc/build/
+
+# Sentry
+sentry.properties
+
