@@ -1,7 +1,6 @@
 package com.ruigoncalo.eder.ui
 
 import android.util.Log
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
@@ -28,7 +27,6 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -36,13 +34,13 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TextFieldValue
@@ -59,6 +57,8 @@ import com.ruigoncalo.eder.ui.theme.Typography
 fun EditorScreen() {
     val snackbarHostState = remember { SnackbarHostState() }
     val isEditing = remember { mutableStateOf(false) }
+    val layoutResult = remember { mutableStateOf<TextLayoutResult?>(null) }
+    val caretPosition = remember { mutableStateOf<Int?>(null) }
 
     val topBarTitle = if (isEditing.value) "Edit Mode" else "View Mode"
 
@@ -87,16 +87,26 @@ fun EditorScreen() {
             Box(modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(Unit) {
-                    detectTapGestures {
-                        if (isEditing.value) {
-                            isEditing.value = false
+                    detectTapGestures { offset ->
+                        isEditing.value = !isEditing.value
+
+                        layoutResult.value?.let { layout ->
+                            val closestTextPoint = getClosestCharacterOffset(
+                                textLayoutResult = layout,
+                                touchPosition = offset
+                            )
+
+                            caretPosition.value = closestTextPoint
+                            Log.d("Test", "Closest text point: $closestTextPoint")
                         }
                     }
                 }
             ) {
                 LinkableTextField(
                     isEditing = isEditing,
+                    layoutResult = layoutResult,
                     initialText = "Initial text to see what happens www.hello.com and then stuff",
+                    updateCaretPosition = caretPosition.value,
                     onLinkClick = { link ->
                         Log.d("Test", "Link clicked: $link")
                     }
@@ -109,13 +119,15 @@ fun EditorScreen() {
 @Composable
 fun LinkableTextField(
     isEditing: MutableState<Boolean>,
+    layoutResult: MutableState<TextLayoutResult?>,
     initialText: String,
-    onLinkClick: (String) -> Unit
+    updateCaretPosition: Int?,
+    onLinkClick: (String) -> Unit,
 ) {
     var text by remember { mutableStateOf(TextFieldValue(initialText)) }
     val context = LocalContext.current
     val annotatedString = remember(text.text) { buildAnnotatedStringWithLinks(text.text) }
-    val layoutResult = remember { mutableStateOf<TextLayoutResult?>(null) }
+
     val interactionSource = remember { MutableInteractionSource() }
     val focusManager = LocalFocusManager.current
     val focusRequester = remember { FocusRequester() }
@@ -126,6 +138,12 @@ fun LinkableTextField(
             //text = text.copy(selection = TextRange(text.text.length)) // Set caret to end
         } else {
             focusManager.clearFocus()
+        }
+    }
+
+    LaunchedEffect(updateCaretPosition) {
+        if(updateCaretPosition != null) {
+            text = text.copy(selection = TextRange(updateCaretPosition))
         }
     }
 
