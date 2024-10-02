@@ -1,4 +1,4 @@
-package com.ruigoncalo.eder.ui.theme
+package com.ruigoncalo.eder.theme
 
 import androidx.compose.ui.graphics.Color
 

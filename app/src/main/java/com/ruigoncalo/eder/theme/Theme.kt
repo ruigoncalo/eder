@@ -1,4 +1,4 @@
-package com.ruigoncalo.eder.ui.theme
+package com.ruigoncalo.eder.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme

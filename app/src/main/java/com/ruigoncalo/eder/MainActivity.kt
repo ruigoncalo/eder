@@ -4,8 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.ruigoncalo.eder.ui.EditorScreen
-import com.ruigoncalo.eder.ui.theme.EderTheme
+import com.ruigoncalo.eder.theme.EderTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
