@@ -144,7 +144,7 @@ fun EditorScreen(
                     annotatedString = annotatedString,
                     layoutResult = layoutResult,
                     updateCaretPosition = caretPosition.value,
-                    onOpenLink = { link -> viewModel.onOpenLink(link) },
+                    onOpenLink = { link -> openBrowser(link, context) },
                     onEditLink = { link -> viewModel.onEditLink(link) }
                 )
             }
@@ -218,21 +218,26 @@ fun LinkableTextField(
     }
 
     // Use a side effect to listen to taps on the TextField and changes on the text
-    LaunchedEffect(interactionSource) {
+    // listen to changes on the annotatedString as well
+    LaunchedEffect(interactionSource, annotatedString) {
         interactionSource.interactions.collect { interaction ->
             when (interaction) {
                 is PressInteraction.Press -> {
                     val offset = interaction.pressPosition
                     val position = layoutResult.value?.getOffsetForPosition(offset)
+                    Log.d("Test", "Press text at position $position")
+
 
                     if (position != null) {
                         val annotation = annotatedString
                             .getStringAnnotations(tag = LINK_TAG, start = position, end = position)
                             .firstOrNull()
+                        Log.d("Test", "Link to open? $annotation")
 
                         if (annotation != null) {
+                            Log.d("Test", "Will open link ${annotation.item}")
                             onOpenLink(annotation.item)
-                            focusManager.clearFocus()
+                            isEditing.value = false
                         }
                     }
                 }

@@ -84,20 +84,14 @@ class EditorViewModel : ViewModel() {
                 append(text.substring(start, matchResult.range.first))
 
                 // Add link text and highlight
-                val link = onTextLinkMatch(matchResult.value, matchResult.range)
-
-                pushStringAnnotation(tag = LINK_TAG, annotation = link.id)
-                if (!link.isDeleted) {
-                    withStyle(
-                        style = SpanStyle(
-                            color = Color.Blue,
-                            textDecoration = TextDecoration.Underline
-                        )
-                    ) {
-                        append(matchResult!!.value)
-                    }
-                } else {
-                    append(matchResult.value)
+                pushStringAnnotation(tag = LINK_TAG, annotation = matchResult.value)
+                withStyle(
+                    style = SpanStyle(
+                        color = Color.Blue,
+                        textDecoration = TextDecoration.Underline
+                    )
+                ) {
+                    append(matchResult!!.value)
                 }
 
                 pop()
@@ -110,6 +104,17 @@ class EditorViewModel : ViewModel() {
             append(text.substring(start))
         }
 
+        links.clear()
+        annotatedString.getStringAnnotations(LINK_TAG, 0, text.length)
+            .forEach { annotation ->
+                val link = Link(
+                    text = annotation.item,
+                    range = IntRange(annotation.start, annotation.end),
+                    url = annotation.item
+                )
+                links.add(link)
+            }
+
         Log.d(
             "Test",
             "Annotated string: ${annotatedString.getStringAnnotations(LINK_TAG, 0, text.length)}"
@@ -118,14 +123,21 @@ class EditorViewModel : ViewModel() {
     }
 
     private fun onTextLinkMatch(text: String, range: IntRange): Link {
-        val result = findLink(text, range)
-        Log.d("Test", "On link match result = $result")
-        return if (result == null) {
+        val savedLink = findLink(text, range)
+
+        Log.d("Test", "Try to match $text in $range. Saved link = $savedLink")
+        return if (savedLink == null) {
             val link = addLink(text = text, range = range, url = text)
-            Log.d("Test", "Add new link $link")
+            Log.d("Test", "So adding new link $link")
             link
         } else {
-            result
+            if (savedLink.text != text) { // link text has changed (ex: from "site.c" to "site.co")
+                val updatedLink = savedLink.copy(text = text, range = range)
+                links[links.indexOf(savedLink)] = updatedLink
+                updatedLink
+            } else {
+                savedLink
+            }
         }
     }
 
@@ -155,7 +167,7 @@ sealed class UiEvent {
 
     data class OpenBottomSheet(val link: Link) : UiEvent()
 
-    data class TextUpdate(val text: String): UiEvent()
+    data class TextUpdate(val text: String) : UiEvent()
 
-    data class OpenBrowser(val url: String): UiEvent()
+    data class OpenBrowser(val url: String) : UiEvent()
 }

@@ -9,6 +9,7 @@ data class Link(
     val url: String,
     val isDeleted: Boolean = false
 ) {
-    fun isLink(text: String, range: IntRange): Boolean =
-        this.text == text && this.range == range
+    fun isLink(linkText: String, linkRange: IntRange): Boolean =
+        (text == linkText && range == linkRange) ||
+                (range.first == linkRange.first && linkText.startsWith(text))
 }
