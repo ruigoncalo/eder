@@ -66,7 +66,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ruigoncalo.eder.UiEvent.HideBottomSheet
 import com.ruigoncalo.eder.UiEvent.None
-import com.ruigoncalo.eder.UiEvent.OpenBrowser
 import com.ruigoncalo.eder.UiEvent.OpenBottomSheet
 import com.ruigoncalo.eder.UiEvent.TextUpdate
 import com.ruigoncalo.eder.model.Link
@@ -123,7 +122,7 @@ fun EditorScreen(
                 .pointerInput(Unit) {
                     // tapping outside the text field
                     detectTapGestures { offset ->
-                        if(!isEditing.value) {
+                        if (!isEditing.value) {
                             isEditing.value = true
 
                             layoutResult.value?.let { layout ->
@@ -145,7 +144,7 @@ fun EditorScreen(
                     layoutResult = layoutResult,
                     updateCaretPosition = caretPosition.value,
                     onOpenLink = { link -> openBrowser(link, context) },
-                    onEditLink = { link -> viewModel.onEditLink(link) }
+                    onEditLink = { link, start, end -> viewModel.onEditLink(link, start, end) }
                 )
             }
         }
@@ -161,11 +160,7 @@ fun EditorScreen(
                 Log.d("Test", "Text update $textUpdated")
                 showBottomSheet = false
                 text.value = TextFieldValue(textUpdated)
-            }
-
-            is OpenBrowser -> {
-                val url = (uiEvent as OpenBrowser).url
-                openBrowser(url, context)
+                caretPosition.value = (uiEvent as TextUpdate).caretPosition
             }
         }
     }
@@ -196,17 +191,41 @@ fun LinkableTextField(
     layoutResult: MutableState<TextLayoutResult?>,
     updateCaretPosition: Int?,
     onOpenLink: (String) -> Unit,
-    onEditLink: (String) -> Unit
+    onEditLink: (String, Int, Int) -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val focusManager = LocalFocusManager.current
     val focusRequester = remember { FocusRequester() }
+    val tapStartTime = remember { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(isEditing.value) {
         if (isEditing.value) {
             focusRequester.requestFocus() // Show keyboard
         } else {
             focusManager.clearFocus() // Hide keyboard
+        }
+    }
+
+    LaunchedEffect(text.value.selection) {
+        Log.d(
+            "Test",
+            "Selection changed: ${text.value.selection.start}-${text.value.selection.end}"
+        )
+        val start = text.value.selection.start
+        val end = text.value.selection.end
+
+        if (start != end) {
+            annotatedString
+                .getStringAnnotations(
+                    tag = LINK_TAG,
+                    start = text.value.selection.start,
+                    end = text.value.selection.end
+                ).firstOrNull()
+                ?.let {
+                    if(it.start == start && it.end == end) {
+                        onEditLink(it.item, it.start, it.end)
+                    }
+                }
         }
     }
 
@@ -223,21 +242,27 @@ fun LinkableTextField(
         interactionSource.interactions.collect { interaction ->
             when (interaction) {
                 is PressInteraction.Press -> {
-                    val offset = interaction.pressPosition
-                    val position = layoutResult.value?.getOffsetForPosition(offset)
-                    Log.d("Test", "Press text at position $position")
+                    tapStartTime.value = System.currentTimeMillis()
+                }
+
+                is PressInteraction.Release -> {
+                    if(tapStartTime.value != null && System.currentTimeMillis() - tapStartTime.value!! < 300) {
+                        val offset = interaction.press.pressPosition
+                        val position = layoutResult.value?.getOffsetForPosition(offset)
+                        Log.d("Test", "Press text at position $position")
 
 
-                    if (position != null) {
-                        val annotation = annotatedString
-                            .getStringAnnotations(tag = LINK_TAG, start = position, end = position)
-                            .firstOrNull()
-                        Log.d("Test", "Link to open? $annotation")
+                        if (position != null) {
+                            val annotation = annotatedString
+                                .getStringAnnotations(tag = LINK_TAG, start = position, end = position)
+                                .firstOrNull()
+                            Log.d("Test", "Link to open? $annotation")
 
-                        if (annotation != null) {
-                            Log.d("Test", "Will open link ${annotation.item}")
-                            onOpenLink(annotation.item)
-                            isEditing.value = false
+                            if (annotation != null) {
+                                Log.d("Test", "Will open link ${annotation.item}")
+                                onOpenLink(annotation.item)
+                                isEditing.value = false
+                            }
                         }
                     }
                 }

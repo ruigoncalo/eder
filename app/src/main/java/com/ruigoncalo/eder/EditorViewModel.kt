@@ -24,38 +24,37 @@ private const val regex =
 class EditorViewModel : ViewModel() {
 
     private val links = mutableListOf<Link>()
+    private val editedLinks = mutableListOf<Link>()
 
     private val _uiEvent = MutableStateFlow<UiEvent>(None)
     val uiEvent: StateFlow<UiEvent> = _uiEvent
 
     fun onSaveLink(link: Link, linkText: String, linkUrl: String, currentText: String) {
-        links.firstOrNull { it.id == link.id }?.let {
-            val updatedLink = it.copy(text = linkText, url = linkUrl)
-            links[links.indexOf(it)] = updatedLink
-        }
+        links.firstOrNull { it.isSame(link) }?.let {
+            val editedLink = it.copy(
+                text = linkText,
+                url = linkUrl,
+                range = IntRange(it.range.first, it.range.first + linkText.length)
+            )
+            editedLinks.add(editedLink)
 
-        val updatedText = currentText.replace(link.text, linkText)
-
-        _uiEvent.update { UiEvent.TextUpdate(updatedText) }
-    }
-
-    fun onEditLink(linkId: String) {
-        _uiEvent.update { None }
-        Log.d("Test", "Edit link = ${getLink(linkId)}")
-        getLink(linkId)?.let { link ->
-            _uiEvent.update { OpenBottomSheet(link) }
+            val updatedText = currentText.replace(link.text, linkText)
+            _uiEvent.update { UiEvent.TextUpdate(updatedText, caretPosition = editedLink.range.last) }
         }
     }
 
-    fun onOpenLink(linkId: String) {
-        _uiEvent.update { None }
-        getLink(linkId)?.let { link ->
-            _uiEvent.update { UiEvent.OpenBrowser(link.url) }
-        }
+    fun onEditLink(text: String, start: Int, end: Int) {
+        Log.d("Test", "Looking for link = ($start, $end) $text")
+        links.firstOrNull { it.isSame(text, start, end) }
+            ?.let { link ->
+                Log.d("Test", "Found $link")
+                _uiEvent.update { OpenBottomSheet(link) }
+            }
+            ?: Log.d("Test", "Not found")
     }
 
     fun onRemoveLink(link: Link) {
-        links.firstOrNull { it.id == link.id }?.let {
+        links.firstOrNull { it.isSame(link) }?.let {
             val updatedLink = it.copy(isDeleted = true)
             links[links.indexOf(it)] = updatedLink
         }
@@ -65,7 +64,7 @@ class EditorViewModel : ViewModel() {
 
     fun buildAnnotatedStringWithLinks(text: String): AnnotatedString {
         val annotatedString = buildAnnotatedString {
-            val activeLinks = links.filter { !it.isDeleted }
+            val activeLinks = editedLinks.filter { !it.isDeleted }
 
             val dynamicRegex = if (activeLinks.isNotEmpty()) {
                 val linkTextsRegex = activeLinks
@@ -122,41 +121,16 @@ class EditorViewModel : ViewModel() {
         return annotatedString
     }
 
-    private fun onTextLinkMatch(text: String, range: IntRange): Link {
-        val savedLink = findLink(text, range)
-
-        Log.d("Test", "Try to match $text in $range. Saved link = $savedLink")
-        return if (savedLink == null) {
-            val link = addLink(text = text, range = range, url = text)
-            Log.d("Test", "So adding new link $link")
-            link
-        } else {
-            if (savedLink.text != text) { // link text has changed (ex: from "site.c" to "site.co")
-                val updatedLink = savedLink.copy(text = text, range = range)
-                links[links.indexOf(savedLink)] = updatedLink
-                updatedLink
-            } else {
-                savedLink
-            }
-        }
-    }
-
     private fun addLink(text: String, range: IntRange, url: String): Link {
         val link = Link(text = text, range = range, url = url)
         links.add(link)
         return link
     }
 
-    private fun removeLink(id: String) {
-        links.firstOrNull { it.id == id }
+    private fun removeLink(link: Link) {
+        links.firstOrNull { it.isSame(link) }
             ?.let { links.remove(it) }
     }
-
-    private fun getLink(id: String): Link? =
-        links.firstOrNull { it.id == id }
-
-    private fun findLink(text: String, range: IntRange): Link? =
-        links.firstOrNull { it.isLink(text, range) }
 }
 
 sealed class UiEvent {
@@ -167,7 +141,5 @@ sealed class UiEvent {
 
     data class OpenBottomSheet(val link: Link) : UiEvent()
 
-    data class TextUpdate(val text: String) : UiEvent()
-
-    data class OpenBrowser(val url: String) : UiEvent()
+    data class TextUpdate(val text: String, val caretPosition: Int) : UiEvent()
 }
