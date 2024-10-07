@@ -144,7 +144,7 @@ fun EditorScreen(
                     layoutResult = layoutResult,
                     updateCaretPosition = caretPosition.value,
                     onOpenLink = { link -> openBrowser(link, context) },
-                    onEditLink = { link, start, end -> viewModel.onEditLink(link, start, end) }
+                    onEditLink = { link, start -> viewModel.onEditLink(link, start) }
                 )
             }
         }
@@ -173,8 +173,8 @@ fun EditorScreen(
             onSave = { link, newText, newUrl ->
                 viewModel.onSaveLink(
                     link = link,
-                    linkText = newText,
-                    linkUrl = newUrl,
+                    updatedText = newText,
+                    updatedUrl = newUrl,
                     currentText = text.value.text
                 )
             },
@@ -191,7 +191,7 @@ fun LinkableTextField(
     layoutResult: MutableState<TextLayoutResult?>,
     updateCaretPosition: Int?,
     onOpenLink: (String) -> Unit,
-    onEditLink: (String, Int, Int) -> Unit
+    onEditLink: (String, Int) -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val focusManager = LocalFocusManager.current
@@ -207,25 +207,21 @@ fun LinkableTextField(
     }
 
     LaunchedEffect(text.value.selection) {
-        Log.d(
-            "Test",
-            "Selection changed: ${text.value.selection.start}-${text.value.selection.end}"
-        )
         val start = text.value.selection.start
         val end = text.value.selection.end
+        Log.d(
+            "Test",
+            "Selection changed: $start-$end"
+        )
 
         if (start != end) {
             annotatedString
                 .getStringAnnotations(
                     tag = LINK_TAG,
-                    start = text.value.selection.start,
-                    end = text.value.selection.end
+                    start = start,
+                    end = end
                 ).firstOrNull()
-                ?.let {
-                    if(it.start == start && it.end == end) {
-                        onEditLink(it.item, it.start, it.end)
-                    }
-                }
+                ?.let { onEditLink(it.item, it.start) }
         }
     }
 
@@ -246,7 +242,7 @@ fun LinkableTextField(
                 }
 
                 is PressInteraction.Release -> {
-                    if(tapStartTime.value != null && System.currentTimeMillis() - tapStartTime.value!! < 300) {
+                    if (tapStartTime.value != null && System.currentTimeMillis() - tapStartTime.value!! < 300) {
                         val offset = interaction.press.pressPosition
                         val position = layoutResult.value?.getOffsetForPosition(offset)
                         Log.d("Test", "Press text at position $position")
@@ -254,7 +250,11 @@ fun LinkableTextField(
 
                         if (position != null) {
                             val annotation = annotatedString
-                                .getStringAnnotations(tag = LINK_TAG, start = position, end = position)
+                                .getStringAnnotations(
+                                    tag = LINK_TAG,
+                                    start = position,
+                                    end = position
+                                )
                                 .firstOrNull()
                             Log.d("Test", "Link to open? $annotation")
 
@@ -366,6 +366,7 @@ fun EditLinkBottomSheet(
             }
             Row {
                 Button(
+                    enabled = false,
                     modifier = Modifier
                         .padding(16.dp)
                         .weight(1f),
